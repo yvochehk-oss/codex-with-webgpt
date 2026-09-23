@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#090d16">
+  <title>Codex × WebGPT · 可核验的协作闭环</title>
+  <meta name="description" content="codex-with-webgpt 是一个供 Codex 使用的 skill：通过内置浏览器与 Computer Use 绑定指定 ChatGPT 会话，分阶段协作，并由 Codex 对实际文件、提交与测试结果独立核验。">
+  <style>
+    :root {
+      --bg: #090d16;
+      --bg-soft: #0d1320;
+      --panel: rgba(18, 26, 42, 0.76);
+      --panel-strong: rgba(22, 32, 51, 0.94);
+      --line: rgba(148, 163, 184, 0.14);
+      --line-strong: rgba(56, 189, 248, 0.38);
+      --text: #f3f7ff;
+      --muted: #9aa8bc;
+      --cyan: #38bdf8;
+      --cyan-soft: rgba(56, 189, 248, 0.13);
+      --purple: #a78bfa;
+      --purple-soft: rgba(167, 139, 250, 0.13);
+      --green: #34d399;
+      --green-soft: rgba(52, 211, 153, 0.12);
+      --amber: #fbbf24;
+      --amber-soft: rgba(251, 191, 36, 0.12);
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --max: 1240px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 16% 8%, rgba(56, 189, 248, 0.11), transparent 28rem),
+        radial-gradient(circle at 86% 18%, rgba(167, 139, 250, 0.12), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .skip-link {
+      position: fixed;
+      left: 16px;
+      top: 12px;
+      z-index: 999;
+      transform: translateY(-160%);
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #0b1020;
+      font-weight: 700;
+      text-decoration: none;
+      transition: transform 0.2s ease;
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .container {
+      width: min(var(--max), calc(100% - 48px));
+      margin: 0 auto;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      border-bottom: 1px solid var(--line);
+      background: rgba(9, 13, 22, 0.78);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .nav {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(167, 139, 250, 0.26));
+      border: 1px solid rgba(125, 211, 252, 0.24);
+      color: #dff7ff;
+      box-shadow: 0 0 22px rgba(56, 189, 248, 0.14);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      font-size: 0.92rem;
+      text-decoration: none;
+      font-weight: 650;
+    }
+
+    .nav-links a:hover,
+    .nav-links a:focus-visible {
+      color: var(--text);
+    }
+
+    .hero {
+      padding: 100px 0 64px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 24px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      background: rgba(56, 189, 248, 0.08);
+      color: #8bdcff;
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .hero h1 {
+      max-width: 1080px;
+      margin: 0 auto 24px;
+      font-size: clamp(2.45rem, 6vw, 4.8rem);
+      line-height: 1.08;
+      letter-spacing: -0.05em;
+    }
+
+    .gradient-text {
+      background: linear-gradient(120deg, #7dd3fc 5%, #818cf8 50%, #c084fc 95%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero-copy {
+      max-width: 900px;
+      margin: 0 auto 34px;
+      color: var(--muted);
+      font-size: clamp(1.02rem, 2vw, 1.22rem);
+    }
+
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 42px;
+    }
+
+    .button {
+      min-height: 46px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 19px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      text-decoration: none;
+      font-weight: 800;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+    }
+
+    .button:focus-visible,
+    .nav-links a:focus-visible,
+    .terminal-copy:focus-visible {
+      outline: 3px solid rgba(56, 189, 248, 0.44);
+      outline-offset: 3px;
+    }
+
+    .button-primary {
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      border-color: transparent;
+      box-shadow: 0 14px 36px rgba(37, 99, 235, 0.24);
+    }
+
+    .button-secondary {
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .terminal {
+      max-width: 1040px;
+      margin: 0 auto;
+      overflow: hidden;
+      text-align: left;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      background: rgba(7, 11, 19, 0.9);
+      box-shadow: var(--shadow);
+    }
+
+    .terminal-head {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 15px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 7px;
+    }
+
+    .terminal-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .terminal-dots span:nth-child(1) { background: #fb7185; }
+    .terminal-dots span:nth-child(2) { background: #fbbf24; }
+    .terminal-dots span:nth-child(3) { background: #34d399; }
+
+    .terminal-label {
+      color: #7f8ca1;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .terminal-copy {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #c8d4e5;
+      padding: 6px 10px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 750;
+    }
+
+    .terminal pre {
+      margin: 0;
+      padding: 24px;
+      overflow-x: auto;
+      color: #b9e9ff;
+      font-size: 0.92rem;
+      line-height: 1.75;
+      white-space: pre;
+    }
+
+    .signal-grid {
+      max-width: 1040px;
+      margin: 22px auto 0;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .signal {
+      padding: 15px 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(15, 22, 36, 0.58);
+      text-align: left;
+    }
+
+    .signal strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 0.89rem;
+    }
+
+    .signal span {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    section {
+      scroll-margin-top: 90px;
+    }
+
+    .section {
+      padding: 76px 0;
+    }
+
+    .section-toned {
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.012);
+    }
+
+    .section-heading {
+      max-width: 780px;
+      margin: 0 auto 38px;
+      text-align: center;
+    }
+
+    .section-kicker {
+      margin-bottom: 8px;
+      color: var(--cyan);
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .section-heading h2 {
+      margin-bottom: 12px;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      letter-spacing: -0.035em;
+    }
+
+    .section-heading p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .card {
+      min-height: 100%;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--panel);
+      box-shadow: 0 14px 38px rgba(0, 0, 0, 0.13);
+    }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      background: var(--cyan-soft);
+      color: #8bdcff;
+      font-weight: 900;
+    }
+
+    .card h3 {
+      margin-bottom: 9px;
+      font-size: 1.13rem;
+    }
+
+    .card p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+    }
+
+    .flow-step {
+      position: relative;
+      min-height: 190px;
+      padding: 24px 20px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--panel);
+    }
+
+    .flow-step::after {
+      content: attr(data-step);
+      position: absolute;
+      right: 12px;
+      bottom: -16px;
+      color: rgba(255, 255, 255, 0.045);
+      font-size: 4.8rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .flow-step strong {
+      display: block;
+      margin-bottom: 9px;
+      font-size: 1rem;
+    }
+
+    .flow-step p {
+      position: relative;
+      z-index: 1;
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .role-strip {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 18px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(10, 15, 25, 0.66);
+    }
+
+    .role {
+      padding: 12px 16px;
+      border-radius: 12px;
+    }
+
+    .role strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .role span {
+      color: var(--muted);
+      font-size: 0.87rem;
+    }
+
+    .role-web {
+      border: 1px solid rgba(167, 139, 250, 0.22);
+      background: var(--purple-soft);
+    }
+
+    .role-codex {
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      background: var(--cyan-soft);
+    }
+
+    .role-arrow {
+      color: #718096;
+      font-size: 1.2rem;
+      font-weight: 900;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .board-column {
+      padding: 19px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: rgba(10, 15, 25, 0.58);
+    }
+
+    .board-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 15px;
+      padding-bottom: 13px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .board-head strong {
+      font-size: 0.96rem;
+    }
+
+    .board-badge {
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .badge-plan { background: var(--cyan-soft); color: #8bdcff; }
+    .badge-turn { background: var(--purple-soft); color: #c4b5fd; }
+    .badge-verify { background: var(--green-soft); color: #6ee7b7; }
+
+    .board-card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+
+    .board-card + .board-card {
+      margin-top: 12px;
+    }
+
+    .board-card small {
+      display: block;
+      margin-bottom: 5px;
+      color: #728198;
+      font-weight: 750;
+    }
+
+    .board-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.91rem;
+    }
+
+    .board-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .boundary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+
+    .boundary-panel {
+      padding: 27px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .boundary-panel h3 {
+      margin-bottom: 18px;
+    }
+
+    .check-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .check-list li {
+      position: relative;
+      padding-left: 28px;
+      color: var(--muted);
+    }
+
+    .check-list li + li {
+      margin-top: 11px;
+    }
+
+    .check-list li::before {
+      position: absolute;
+      left: 0;
+      top: 0.03em;
+      width: 19px;
+      height: 19px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 900;
+    }
+
+    .does li::before {
+      content: "✓";
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .does-not li::before {
+      content: "!";
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .permissions {
+      margin-top: 22px;
+      padding: 24px;
+      border: 1px solid rgba(167, 139, 250, 0.24);
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.06), rgba(167, 139, 250, 0.08));
+      text-align: center;
+    }
+
+    .permissions h3 {
+      margin-bottom: 15px;
+    }
+
+    .permission-line {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 13px;
+      flex-wrap: wrap;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+
+    .permission-node {
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(7, 11, 19, 0.62);
+    }
+
+    .not-equal {
+      color: var(--amber);
+    }
+
+    .permissions p {
+      max-width: 760px;
+      margin: 15px auto 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .quickstart {
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+      gap: 24px;
+      align-items: stretch;
+      min-width: 0;
+    }
+
+    .quick-panel {
+      min-width: 0;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--panel-strong);
+    }
+
+    .quick-panel h2,
+    .quick-panel h3 {
+      margin-bottom: 14px;
+    }
+
+    .steps {
+      counter-reset: quick;
+      list-style: none;
+      margin: 22px 0 0;
+      padding: 0;
+      min-width: 0;
+    }
+
+    .steps li {
+      counter-increment: quick;
+      position: relative;
+      min-width: 0;
+      padding-left: 48px;
+      color: var(--muted);
+    }
+
+    .steps code {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .steps li + li {
+      margin-top: 18px;
+    }
+
+    .steps li::before {
+      content: counter(quick);
+      position: absolute;
+      left: 0;
+      top: -1px;
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      background: var(--cyan-soft);
+      color: #9ee6ff;
+      font-weight: 900;
+    }
+
+    .resource-links {
+      display: grid;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .resource-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-width: 0;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(7, 11, 19, 0.45);
+      text-decoration: none;
+      font-weight: 800;
+    }
+
+    .resource-link > div {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .resource-link span {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .resource-link:hover,
+    .resource-link:focus-visible {
+      border-color: var(--line-strong);
+    }
+
+    footer {
+      padding: 44px 0 54px;
+      border-top: 1px solid var(--line);
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    footer strong {
+      color: var(--text);
+    }
+
+    @media (max-width: 1040px) {
+      .signal-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .flow {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .flow-step:last-child {
+        grid-column: span 2;
+      }
+
+      .board {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 780px) {
+      .container {
+        width: min(100% - 30px, var(--max));
+      }
+
+      .nav {
+        min-height: auto;
+        padding: 14px 0;
+        align-items: flex-start;
+      }
+
+      .nav-links {
+        gap: 12px;
+      }
+
+      .nav-links a:nth-child(2),
+      .nav-links a:nth-child(3) {
+        display: none;
+      }
+
+      .hero {
+        padding-top: 72px;
+      }
+
+      .card-grid,
+      .boundary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .quickstart {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .role-strip {
+        grid-template-columns: 1fr;
+        text-align: left;
+      }
+
+      .role-arrow {
+        transform: rotate(90deg);
+        justify-self: center;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .hero h1 {
+        font-size: 2.45rem;
+      }
+
+      .signal-grid,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-step:last-child {
+        grid-column: auto;
+      }
+
+      .terminal-head {
+        align-items: flex-start;
+      }
+
+      .terminal-label {
+        display: none;
+      }
+
+      .terminal pre {
+        padding: 18px;
+        font-size: 0.8rem;
+      }
+
+      .permission-line {
+        flex-direction: column;
+      }
+
+      .not-equal {
+        transform: rotate(90deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="https://github.com/yvochehk-oss/codex-with-webgpt" aria-label="打开 codex-with-webgpt GitHub 仓库">
+        <span class="brand-mark" aria-hidden="true">↗</span>
+        <span>codex-with-webgpt</span>
+      </a>
+      <nav class="nav-links" aria-label="页面导航">
+        <a href="#value">价值</a>
+        <a href="#workflow">闭环</a>
+        <a href="#board">看板</a>
+        <a href="#boundaries">边界</a>
+        <a href="#quickstart">开始使用</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container">
+        <div class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>Codex Skill · Computer Use · Verified Workflow</div>
+        <h1 id="hero-title">Codex × WebGPT：<span class="gradient-text">把网页端思考变成可核验的协作闭环</span></h1>
+        <p class="hero-copy">
+          Codex 精确进入用户指定的 ChatGPT 会话，把工作拆成一个个可核验阶段；WebGPT 在当前会话实际工具与权限范围内处理本阶段任务；随后 Codex 回到真实环境，检查文件、提交、测试或其他可观察结果，再决定下一步。
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/yvochehk-oss/codex-with-webgpt">查看 GitHub</a>
+          <a class="button button-secondary" href="#quickstart">查看使用步骤</a>
+        </div>
+
+        <div class="terminal" aria-label="Codex 阶段任务示例">
+          <div class="terminal-head">
+            <div class="terminal-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            <span class="terminal-label">给 Codex 的自然语言阶段任务</span>
+            <button class="terminal-copy" type="button" id="copy-example" aria-label="复制阶段任务示例">复制示例</button>
+          </div>
+          <pre><code id="prompt-example">使用 codex-with-webgpt，
+通过内置浏览器与这个 ChatGPT 对话协作：
+https://chatgpt.com/c/&lt;conversation-id&gt;
+
+当前阶段目标：&lt;一个具体结果&gt;
+允许操作：&lt;仓库、分支、文件或外部操作范围&gt;
+请交付：&lt;结果及可核验证据&gt;</code></pre>
+        </div>
+
+        <div class="signal-grid" aria-label="核心能力">
+          <div class="signal"><strong>🎯 精确会话绑定</strong><span>以完整会话 URL 为目标，不猜活动标签页。</span></div>
+          <div class="signal"><strong>🧭 分阶段编排</strong><span>一次推进一个范围明确、可以核验的阶段。</span></div>
+          <div class="signal"><strong>🪪 新旧回复校验</strong><span>确认本轮新用户消息之后出现新的完整助手回合。</span></div>
+          <div class="signal"><strong>✅ 本地独立核验</strong><span>网页端声称的结果，要回到真实环境核对。</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-toned" id="value">
+      <div class="container">
+        <div class="section-heading">
+          <div class="section-kicker">Why it matters</div>
+          <h2>不是“问一次 AI”，而是把协作过程变得可追踪</h2>
+          <p>这个 skill 关注的是会话身份、阶段边界和证据核验，让 Codex 与 WebGPT 的分工不会停留在一句“已经完成”。</p>
+        </div>
+        <div class="card-grid">
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">01</div>
+            <h3>不操作错会话</h3>
+            <p>使用用户给出的完整 ChatGPT 会话 URL，进入或选中确切对话，并核对实际 URL；不会只凭会话标题或当前活动页面猜测目标。</p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">02</div>
+            <h3>不把旧回复当新结果</h3>
+            <p>发送阶段任务前记录当前消息状态，之后确认本次新用户消息与其后的新助手回合。发送状态不明时先检查，不盲目重发可能产生副作用的操作。</p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">03</div>
+            <h3>不把文字声称当完成证据</h3>
+            <p>Codex 独立核验可以观察到的结果：文件看实际内容，提交看真实 SHA，测试看退出码和关键日志，外部操作看实际状态。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="workflow">
+      <div class="container">
+        <div class="section-heading">
+          <div class="section-kicker">Five-step loop</div>
+          <h2>五步协作闭环</h2>
+          <p>网页端负责当前阶段能够完成的工作，Codex 负责组织、读取、验证与推进。能力始终受真实工具和权限约束。</p>
+        </div>
+
+        <div class="flow">
+          <article class="flow-step" data-step="01">
+            <strong>锁定目标会话</strong>
+            <p>取得完整会话 URL，精确进入对应 ChatGPT 对话并确认已登录、可读、可发送。</p>
+          </article>
+          <article class="flow-step" data-step="02">
+            <strong>组织阶段任务</strong>
+            <p>Codex 将目标缩成一个可核验阶段，明确必要输入、允许范围、交付物和证据要求。</p>
+          </article>
+          <article class="flow-step" data-step="03">
+            <strong>WebGPT 处理本阶段</strong>
+            <p>WebGPT 只在当前会话实际拥有的工具与授权范围内工作；无法完成或无法验证时应明确说明。</p>
+          </article>
+          <article class="flow-step" data-step="04">
+            <strong>读取新的完整回合</strong>
+            <p>Codex 等待本次用户消息之后的新助手回复完成，旧回复、错误页面和仍在生成的片段都不算结果。</p>
+          </article>
+          <article class="flow-step" data-step="05">
+            <strong>核验证据再推进</strong>
+            <p>Codex 检查真实结果，区分已证实与未验证部分，再决定完成、补证、修正或进入下一阶段。</p>
+          </article>
+        </div>
+
+        <div class="role-strip" aria-label="Codex 与 WebGPT 的角色分工">
+          <div class="role role-web">
+            <strong>WebGPT</strong>
+            <span>处理 Codex 本轮明确交给它、且当前会话实际能力支持的阶段任务。</span>
+          </div>
+          <div class="role-arrow" aria-hidden="true">⇄</div>
+          <div class="role role-codex">
+            <strong>Codex</strong>
+            <span>拆分任务、操作内置浏览器、读取新回复，并在真实环境里独立核验结果。</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-toned" id="board">
+      <div class="container">
+        <div class="section-heading">
+          <div class="section-kicker">Workflow board</div>
+          <h2>协作状态看板</h2>
+          <p>这是静态的方法论看板，不是项目 Issue、发布进度或 Roadmap。它展示一轮可靠协作应该经过哪些状态。</p>
+        </div>
+
+        <div class="board">
+          <section class="board-column" aria-labelledby="board-plan">
+            <div class="board-head">
+              <strong id="board-plan">① 阶段任务</strong>
+              <span class="board-badge badge-plan">Scope</span>
+            </div>
+            <div class="board-card">
+              <small>GOAL</small>
+              <strong>明确一个具体结果</strong>
+              <p>把大任务缩成这一轮可以判断完成与否的目标。</p>
+            </div>
+            <div class="board-card">
+              <small>BOUNDARY</small>
+              <strong>限定允许操作范围</strong>
+              <p>明确仓库、分支、文件、外部操作和不可触碰的边界。</p>
+            </div>
+            <div class="board-card">
+              <small>EVIDENCE</small>
+              <strong>先定义交付证据</strong>
+              <p>要求网页端报告实际完成事项、证据与无法验证的部分。</p>
+            </div>
+          </section>
+
+          <section class="board-column" aria-labelledby="board-turn">
+            <div class="board-head">
+              <strong id="board-turn">② WebGPT 回合</strong>
+              <span class="board-badge badge-turn">Turn</span>
+            </div>
+            <div class="board-card">
+              <small>TARGET</small>
+              <strong>精确目标会话</strong>
+              <p>以完整 URL 绑定对话，而不是模糊寻找“看起来像”的页面。</p>
+            </div>
+            <div class="board-card">
+              <small>IDENTITY</small>
+              <strong>确认新用户消息</strong>
+              <p>发送后检查页面确实出现本轮阶段任务，避免把未知发送状态当成功。</p>
+            </div>
+            <div class="board-card">
+              <small>RESPONSE</small>
+              <strong>只读取新的完整回复</strong>
+              <p>没有新回合、回复仍在生成或会话不匹配时，不把内容用于后续决策。</p>
+            </div>
+          </section>
+
+          <section class="board-column" aria-labelledby="board-verify">
+            <div class="board-head">
+              <strong id="board-verify">③ Codex 验证</strong>
+              <span class="board-badge badge-verify">Verify</span>
+            </div>
+            <div class="board-card">
+              <small>FILES</small>
+              <strong>查看真实文件</strong>
+              <p>网页回复说“已修改”只是线索，Codex 仍要检查实际内容与允许范围。</p>
+            </div>
+            <div class="board-card">
+              <small>GIT / TESTS</small>
+              <strong>核对 SHA 与退出码</strong>
+              <p>涉及 Git 时看真实提交；涉及测试时看执行结果和关键日志。</p>
+            </div>
+            <div class="board-card">
+              <small>DECISION</small>
+              <strong>区分已证实与未验证</strong>
+              <p>证据充分再推进；缺证据则补证或修正，而不是把推测包装成完成。</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="boundaries">
+      <div class="container">
+        <div class="section-heading">
+          <div class="section-kicker">Boundaries first</div>
+          <h2>能力边界写在页面上，而不是藏在脚注里</h2>
+          <p>可靠协作的前提，是不把本机权限、网页登录和网页端工具连接混为一谈。</p>
+        </div>
+
+        <div class="boundary-grid">
+          <article class="boundary-panel">
+            <h3>它实际做什么</h3>
+            <ul class="check-list does">
+              <li>只使用 Codex 内置浏览器与 Computer Use 操作用户指定的 ChatGPT 会话。</li>
+              <li>把用户目标拆成一个个有范围、有交付物、有证据要求的阶段任务。</li>
+              <li>检查新消息与新助手回合，遇到状态不明时先核对现状再决定是否重试。</li>
+              <li>由 Codex 对文件、提交、测试和其他可观察结果做独立核验。</li>
+              <li>需要 GitHub 协作时，可在用户明确范围内结合本机 GitHub CLI 或网页端实际可用的 GitHub 连接。</li>
+            </ul>
+          </article>
+
+          <article class="boundary-panel">
+            <h3>它不会擅自假设什么</h3>
+            <ul class="check-list does-not">
+              <li>不使用 Safari、外部 Chrome、CDP、AppleScript 或浏览器扩展作为该 skill 的工作方式。</li>
+              <li>不因为本机已经登录 gh，就假设 ChatGPT 网页端也获得 GitHub 访问权限。</li>
+              <li>不把 WebGPT 的文字回复直接视为文件、提交、测试或外部操作已经完成。</li>
+              <li>不在会话不匹配、发送状态未知或回复不完整时盲目推进可能有副作用的步骤。</li>
+              <li>不要求用户把账号密码、验证码、Cookie 或令牌发送给 Codex。</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="permissions">
+          <h3>三种状态，三套权限</h3>
+          <div class="permission-line" aria-label="权限关系">
+            <span class="permission-node">Codex 本机 GitHub CLI</span>
+            <span class="not-equal" aria-label="不等于">≠</span>
+            <span class="permission-node">ChatGPT 网页登录</span>
+            <span class="not-equal" aria-label="不等于">≠</span>
+            <span class="permission-node">ChatGPT 会话中的 GitHub 连接</span>
+          </div>
+          <p>只有当前阶段真实存在的工具和授权才算能力。网页端如果要读写 GitHub，需要该会话本身具备相应连接与仓库权限；本机 gh 登录不会替网页端授权。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-toned" id="quickstart">
+      <div class="container quickstart">
+        <article class="quick-panel">
+          <div class="section-kicker">Quick start</div>
+          <h2>三步开始协作</h2>
+          <ol class="steps">
+            <li>将仓库中的 <code>SKILL.md</code> 放到 <code>~/.codex/skills/codex-with-webgpt/SKILL.md</code>，已安装时用新版本覆盖。</li>
+            <li>确认 Codex 能使用 Computer Use 控制内置浏览器，在其中登录 ChatGPT，并取得目标对话的完整 <code>https://chatgpt.com/c/&lt;conversation-id&gt;</code> 地址。</li>
+            <li>把任务、目标会话和允许操作范围告诉 Codex；需要 GitHub 协作时，再明确目标仓库与允许的 Git 操作。</li>
+          </ol>
+        </article>
+
+        <aside class="quick-panel" aria-label="项目文档">
+          <div class="section-kicker">Source of truth</div>
+          <h3>从仓库文档继续</h3>
+          <p style="color: var(--muted);">宣传页只帮助快速理解定位。实际使用规则、角色边界与阶段提示模板，以仓库中的 README 和 SKILL 文档为准。</p>
+          <div class="resource-links">
+            <a class="resource-link" href="https://github.com/yvochehk-oss/codex-with-webgpt">
+              <div>GitHub Repository<br><span>查看项目主页与当前文件</span></div>
+              <span aria-hidden="true">↗</span>
+            </a>
+            <a class="resource-link" href="https://github.com/yvochehk-oss/codex-with-webgpt/blob/main/README.md">
+              <div>README.md<br><span>准备方式、使用过程与权限说明</span></div>
+              <span aria-hidden="true">↗</span>
+            </a>
+            <a class="resource-link" href="https://github.com/yvochehk-oss/codex-with-webgpt/blob/main/SKILL.md">
+              <div>SKILL.md<br><span>Codex 实际执行规则与阶段模板</span></div>
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p><strong>codex-with-webgpt</strong> · 面向 Codex 与指定 ChatGPT 会话的分阶段、可核验协作 skill。</p>
+      <p>页面展示的是项目当前工作方式与边界，不代表 GitHub Pages 已发布，也不代表任何外部服务已自动获得授权。</p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var button = document.getElementById('copy-example');
+      var example = document.getElementById('prompt-example');
+      if (!button || !example || !navigator.clipboard) return;
+
+      button.addEventListener('click', function () {
+        navigator.clipboard.writeText(example.textContent).then(function () {
+          var previous = button.textContent;
+          button.textContent = '已复制';
+          window.setTimeout(function () {
+            button.textContent = previous;
+          }, 1600);
+        }).catch(function () {
+          button.textContent = '请手动复制';
+        });
+      });
+    }());
+  </script>
+</body>
+</html>

@@ -2,6 +2,8 @@
 
 这是一个供 Codex 使用的 skill：Codex 通过**内置浏览器 + Computer Use** 向用户指定的 ChatGPT 网页对话发送一个阶段任务，读取该阶段的新回复，核验结果，再决定后续工作。仓库只包含 skill 说明和使用文档；不需要浏览器扩展、CDP 端口或独立桥接脚本，也不需要开启开发者模式的完整 CDP 访问。
 
+Project Page（源码）：[docs/index.html](docs/index.html)
+
 ## 准备
 
 1. 在本机用 **GitHub CLI** 登录要使用的 GitHub 账号，并检查当前账号：
