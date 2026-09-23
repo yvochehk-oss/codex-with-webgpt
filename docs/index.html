@@ -670,12 +670,14 @@
 
     .quickstart {
       display: grid;
-      grid-template-columns: 1.12fr 0.88fr;
+      grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
       gap: 24px;
       align-items: stretch;
+      min-width: 0;
     }
 
     .quick-panel {
+      min-width: 0;
       padding: 28px;
       border: 1px solid var(--line);
       border-radius: var(--radius-lg);
@@ -692,13 +694,20 @@
       list-style: none;
       margin: 22px 0 0;
       padding: 0;
+      min-width: 0;
     }
 
     .steps li {
       counter-increment: quick;
       position: relative;
+      min-width: 0;
       padding-left: 48px;
       color: var(--muted);
+    }
+
+    .steps code {
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .steps li + li {
@@ -732,12 +741,18 @@
       align-items: center;
       justify-content: space-between;
       gap: 14px;
+      min-width: 0;
       padding: 14px 16px;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: rgba(7, 11, 19, 0.45);
       text-decoration: none;
       font-weight: 800;
+    }
+
+    .resource-link > div {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .resource-link span {
@@ -806,9 +821,12 @@
       }
 
       .card-grid,
-      .boundary-grid,
-      .quickstart {
+      .boundary-grid {
         grid-template-columns: 1fr;
+      }
+
+      .quickstart {
+        grid-template-columns: minmax(0, 1fr);
       }
 
       .role-strip {
